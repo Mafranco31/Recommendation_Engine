@@ -1,3 +1,9 @@
+###########################################################
+#*            GROUP 6 : recommendation.py                *#
+#*                                                       *#
+#*    Mark MONTHIEUX - Hugo DUJARDIN - Mathis FRANCOIS   *#
+###########################################################
+
 import pandas as pd
 
 class RecommendationEngine():
