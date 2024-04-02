@@ -1,5 +1,5 @@
 ###########################################################
-#*            GROUP 6 : recommendation.py                *#
+#*             GROUP 6 : recommendation.py               *#
 #*                                                       *#
 #*    Mark MONTHIEUX - Hugo DUJARDIN - Mathis FRANCOIS   *#
 ###########################################################
@@ -16,6 +16,7 @@ class RecommendationEngine():
         self.artists_type = pd.read_csv('./data/artists_type.csv', delimiter=';', index_col=0)
         self.artists_webinf = pd.read_csv('./data/artists_gp6.dat', delimiter='\t')
         self.user = pd.read_csv('./data/user_artists_gp6.dat', delimiter='\t').sort_values('userID')
+        self.lsr = self.user['userID'].to_list()
         self.user_tags = pd.read_csv('./data/tags_by_usr.csv', delimiter=',')
         self.user_tags['tags'] = self.user_tags['tags'].apply(lambda x: eval(x))
 
@@ -187,6 +188,47 @@ class RecommendationEngine():
         fl = fl[fl.values > 1][:5]
         return fl
     
+    def _get_top200_final(self, userid, l_ret, exist=True):
+        '''
+        This function is used at the end if it miss recommendation.
+        It get the top 200 and returns the number of reco the user needs
+
+        Arguments:
+            arg1: id of the user
+            arg2: actual list of return
+            arg3: boolean if the userid exists or not
+
+        Return:
+            list of artists recommended
+        '''
+
+        # We sort by weight artists and get the first 'nb_top_artists' artists
+        artists_weight = self.user.groupby('artistID').sum().drop('userID', axis=1).sort_values('weight', ascending=False).head(200).index
+
+        # We extract from artists_type the artists that are in artists_weight created just before
+        top_artists = self.artists_type[self.artists_type['artist_id'].isin(artists_weight)]['artist_id'].tolist()
+
+        if exist:
+            v_artists_listened = self.user[self.user['userID'] == int(userid)]['artistID'].to_list()
+            k = len(l_ret)
+            for item in top_artists:
+                if item not in l_ret and item not in v_artists_listened:
+                    l_ret.append(item)
+                    k += 1
+                if k == 5:
+                    break
+        else:
+            k = len(l_ret)
+            for item in top_artists:
+                if item not in l_ret:
+                    l_ret.append(item)
+                    k += 1
+                if k == 5:
+                    break
+        return l_ret
+            
+
+
     def get_recommandation(self, userid):
         '''
         This function is the main function of RecommendationEngine.
@@ -199,64 +241,88 @@ class RecommendationEngine():
         Returns:
             The list of the songs he might enjoy
         '''
-        # We do our 3 recommendation function
-        sim = self.get_similar_artists(userid, 2, 10) 
-        tags = self.get_artists_by_tag(userid)
-        usr_sim = self.find_similar_user(userid)
         
-        # We get the number of answers
-        tot = len(sim) + len(tags) + len(usr_sim)
         l_ret = []
+
+        l_art = self.artists_webinf['id'].tolist()
         # If the number of answers is not enought, we do get_artists_by_tags in 'any' mode, that means that
         # if will take all the artists of top '500' that has at least 1 tag that has the user
-        if tot < 5:
-            tags2 = {}
-            tags2 = self.get_artists_by_tag(userid, mode='any', ret_nb = 5 - tot, nb_top_artists=500)
-            tot += len(tags2)
+        if userid in self.lsr:
+            # We do our 3 recommendation function
+            sim = self.get_similar_artists(userid, 2, 10) 
+            tags = self.get_artists_by_tag(userid)
+            usr_sim = self.find_similar_user(userid)
+            
+            # We get the number of answers
+            tot = len(sim) + len(tags) + len(usr_sim)
             if tot < 5:
-                print("user :", userid, "has a total of :", tot)
-            # Then we append all our results in the result list
-            for art1 in range(len(sim)):
-                l_ret.append(sim.index[art1])
-            for art2 in range(len(tags)):
-                l_ret.append(tags.index[art2])
-            for art3 in range(len(usr_sim)):
-                l_ret.append(usr_sim.index[art3])
-            for art4 in range(len(tags2)):
-                l_ret.append(tags2.index[art4])
-        else:
-            # Otherwise we add the 3 first recommendation from get_artists_by_tag that we consider as more
-            # relevant overall
-            len_tags = len(tags)
-            k = min(len_tags, 3)
-            for t in range(k):
-                l_ret.append(tags.index[t])
-            
-            y = 0
-            z = 0
-            # Then we fill the rest with the higest values of get_similar_artists and find_similar_user
-            while (k < 5):
-                if len(sim) - y == 0 and len(usr_sim) - z > 0:
-                    l_ret.append(usr_sim.index[z])
-                    z += 1
-                elif len(usr_sim) - z == 0 and len(sim) - y > 0:
-                    l_ret.append(sim.index[y])
-                    y += 1
-                elif len(usr_sim) - z > 0 and len(sim) - y > 0:
-                    if sim.iloc[y] > usr_sim.iloc[z]:
-                        l_ret.append(sim.index[y])
-                        y += 1
-                    else:
-                        l_ret.append(usr_sim.index[z])
+                tags2 = {}
+                tags2 = self.get_artists_by_tag(userid, mode='any', ret_nb = 10 - tot, nb_top_artists=500)
+                tot += len(tags2)
+                if tot < 5:
+                    print("user :", userid, "has a total of :", tot)
+                # Then we append all our results in the result list
+                k = 0
+                for art1 in range(len(sim)):
+                    if sim.index[art1] not in l_ret and sim.index[art1] in l_art:
+                        l_ret.append(sim.index[art1])
+                        k += 1
+                for art2 in range(len(tags)):
+                    if tags.index[art2] not in l_ret and tags.index[art2] in l_art:
+                        l_ret.append(tags.index[art2])
+                        k += 1
+                for art3 in range(len(usr_sim)):
+                    if usr_sim.index[art3] not in l_ret and usr_sim.index[art3] in l_art:
+                        l_ret.append(usr_sim.index[art3])
+                        k += 1
+                for art4 in range(len(tags2)):
+                    if tags2.index[art4] not in l_ret and tags2.index[art4] in l_art:
+                        l_ret.append(tags2.index[art4])
+                        k += 1
+                    if k == 5:
+                        break
+            else:
+                # Otherwise we add the 3 first recommendation from get_artists_by_tag that we consider as more
+                # relevant overall
+                len_tags = len(tags)
+                k = min(len_tags, 3)
+                t = 0
+                for t in range(k):
+                    if tags.index[t] in l_art:
+                        l_ret.append(tags.index[t])
+                
+                y = 0
+                z = 0
+                # Then we fill the rest with the higest values of get_similar_artists and find_similar_user
+                while (len(l_ret) < 5 and not (len(sim) - y == 0 and len(usr_sim) - z == 0)):
+                    if len(sim) - y == 0 and len(usr_sim) - z > 0:
+                        if usr_sim.index[z] not in l_ret and usr_sim.index[z] in l_art:
+                            l_ret.append(usr_sim.index[z])
                         z += 1
-                k += 1
-            # If we have not enough, we ask an other time to get_artists_by_tag list
-            while (len(l_ret) < 5):
-                l_ret.append(tags.index[t])
-                t += 1
-            
-        if len(l_ret) != 5:
-                print("user :", userid, "has a total of :", len(l_ret))
+                    elif len(usr_sim) - z == 0 and len(sim) - y > 0:
+                        if sim.index[y] not in l_ret and sim.index[y] in l_art:
+                            l_ret.append(sim.index[y])
+                        y += 1
+                    elif len(usr_sim) - z > 0 and len(sim) - y > 0:
+                        if sim.iloc[y] > usr_sim.iloc[z]:
+                            if sim.index[y] not in l_ret and sim.index[y] in l_art:
+                                l_ret.append(sim.index[y])
+                            y += 1
+                        else:
+                            if usr_sim.index[z] not in l_ret and usr_sim.index[z] in l_art:
+                                l_ret.append(usr_sim.index[z])
+                            z += 1
+                    k += 1
+                # If we have not enough, we ask an other time to get_artists_by_tag list
+                while (len(l_ret) < 5 and t < len(tags)):
+                    if tags.index[t] not in l_ret and tags.index[t] in l_art:
+                        l_ret.append(tags.index[t])
+                    t += 1
+            if len(l_ret) != 5:
+                l_ret = self._get_top200_final(userid, l_ret)
+    
+        else:
+            l_ret = self._get_top200_final(userid, l_ret, exist=False)
 
         # Then we use our return list to keep all values of artists_webinf that match
         l_ret_info = pd.DataFrame(self.artists_webinf[self.artists_webinf['id'].isin(l_ret)])
