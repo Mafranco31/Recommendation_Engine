@@ -25,3 +25,4 @@ The engine uses 3 main algorythms to get the 5 recommended songs :
 
 ## Same users :
   The algorithm compare each favorite tags of each users and get the ones that 
+  are similar. Then, it return the favorite artists of the similar users.
