@@ -18,7 +18,7 @@ lsr = lsr['userID'].to_list()
 
 st.set_page_config(page_title="Recom Engine", page_icon=":balloon:", layout="wide", initial_sidebar_state="auto", menu_items=None)
 with st.container(border=True):
-    userid = st.number_input("Wich user ID you want to predict ?", value=2, step=1)
+    userid = st.number_input("Wich user ID you want to predict ?", min_value=1, max_value=2100, value=2, step=1)
 if userid:
     reco = re.get_recommandation(userid)
 
